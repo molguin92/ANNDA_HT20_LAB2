@@ -99,9 +99,13 @@ class GridSOMTopology(SOMTopology):
         col = node_idx % self._grid.shape[1]
 
         neighbors = []
-        for r, c in itertools.product(range(row - self._d, row + self._d + 1),
-                                      range(col - self._d, col + self._d + 1)):
-            if np.abs(r - row) + np.abs(c - col) <= self._d:
+        row_range = range(max(row - self._d, 0),
+                          min(row + self._d + 1, self._grid.shape[0]))
+        col_range = range(max(col - self._d, 0),
+                          min(col + self._d + 1, self._grid.shape[1]))
+        for r, c in itertools.product(row_range, col_range):
+            # skip 0 since a node is not its own neighbor
+            if 0 < np.abs(r - row) + np.abs(c - col) <= self._d:
                 neighbors.append(self._grid[r, c])
 
         return tuple(neighbors)
@@ -208,7 +212,7 @@ if __name__ == '__main__':
     som.train(animals_fts, n_epochs=25, eta=0.25)
     results = som.map(animals_fts)
 
-    animal_df = pd.DataFrame(data={'animal': labels, 'node': results})\
+    animal_df = pd.DataFrame(data={'animal': labels, 'node': results}) \
         .set_index('animal')
     animal_df = animal_df.sort_values('node')
 
