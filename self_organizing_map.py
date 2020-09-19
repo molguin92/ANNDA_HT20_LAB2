@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from typing import Callable, Iterable, Tuple
 
 import numpy as np
+import pandas as pd
 from numpy.random import default_rng
 
 rand_gen = default_rng()
@@ -98,8 +99,8 @@ class GridSOMTopology(SOMTopology):
         col = node_idx % self._grid.shape[1]
 
         neighbors = []
-        for r, c in itertools.product(range(0, self._grid.shape[0]),
-                                      range(0, self._grid.shape[1])):
+        for r, c in itertools.product(range(row - self._d, row + self._d + 1),
+                                      range(col - self._d, col + self._d + 1)):
             if np.abs(r - row) + np.abs(c - col) <= self._d:
                 neighbors.append(self._grid[r, c])
 
@@ -142,7 +143,9 @@ class SelfOrganizingMap:
             # epoch done!
             self._topo.shrink_neighborhood(epoch)
 
-    def map(self, X: np.ndarray, labels: Iterable[str]) -> np.ndarray:
+    def map_labels_to_output_space(self,
+                                   X: np.ndarray,
+                                   labels: Iterable[str]) -> np.ndarray:
         output = np.empty(self._topo.node_count, dtype='U32')
         output[:] = ''
         min_distances = np.empty(self._topo.node_count)
@@ -167,6 +170,21 @@ class SelfOrganizingMap:
 
         return self._topo.map(output)
 
+    def map(self, X: np.ndarray) -> np.ndarray:
+        output = np.empty(X.shape[0], dtype=np.int)
+        output[:] = np.nan
+
+        for i, x_sample in enumerate(X):
+            distances = np.apply_along_axis(
+                func1d=lambda w: np.dot((x_sample - w).T, (x_sample - w)),
+                axis=1,
+                arr=self._W
+            )
+
+            output[i] = np.argmin(distances).item()
+
+        return output
+
 
 def decay_fn(d0: int, d: int, epoch: int) -> int:
     return d0 - int(2.5 * epoch)
@@ -188,11 +206,10 @@ if __name__ == '__main__':
                                    starting_neighbor_d=50,
                                    neighborhood_decay_fn=decay_fn))
     som.train(animals_fts, n_epochs=25, eta=0.25)
-    results = som.map(animals_fts, labels)
+    results = som.map(animals_fts)
 
-    animals = []
-    for label in results:
-        if label not in animals:
-            animals.append(label)
+    animal_df = pd.DataFrame(data={'animal': labels, 'node': results})\
+        .set_index('animal')
+    animal_df = animal_df.sort_values('node')
 
-    print(np.array(animals))
+    print(animal_df)
