@@ -1,6 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Callable, Dict, Iterable, Tuple
+from typing import Callable, Iterable, Tuple
 
 import numpy as np
 from numpy.random import default_rng
@@ -31,7 +31,7 @@ class SOMTopology(ABC):
         return self._nnodes
 
     @abstractmethod
-    def map(self, node_labels: Dict[int, str]) -> np.ndarray:
+    def map(self, label_per_node: np.ndarray) -> np.ndarray:
         pass
 
 
@@ -55,14 +55,8 @@ class LinearSOMTopology(SOMTopology):
 
         return tuple(left_neighbors + right_neighbors)
 
-    def map(self, node_labels: Dict[int, str]) -> np.ndarray:
-        output = np.empty(self._nnodes, dtype='U32')
-
-        indices = list(node_labels.keys())
-        labels = list(node_labels.values())
-
-        output[indices] = labels
-        return output
+    def map(self, label_per_node: np.ndarray) -> np.ndarray:
+        return label_per_node
 
 
 class CircularSOMTopology(LinearSOMTopology):
@@ -111,14 +105,8 @@ class GridSOMTopology(SOMTopology):
 
         return tuple(neighbors)
 
-    def map(self, node_labels: Dict[int, str]) -> np.ndarray:
-        output = np.empty(self._nnodes, dtype='U32')
-
-        indices = list(node_labels.keys())
-        labels = list(node_labels.values())
-
-        output[indices] = labels
-        return output.reshape(self._grid.shape)
+    def map(self, label_per_node: np.ndarray) -> np.ndarray:
+        return label_per_node.reshape(self._grid.shape)
 
 
 class SelfOrganizingMap:
@@ -155,8 +143,10 @@ class SelfOrganizingMap:
             self._topo.shrink_neighborhood(epoch)
 
     def map(self, X: np.ndarray, labels: Iterable[str]) -> np.ndarray:
-        node_label_map = dict()
-        label_d_map = dict()
+        output = np.empty(self._topo.node_count, dtype='U32')
+        output[:] = ''
+        min_distances = np.empty(self._topo.node_count)
+        min_distances[:] = np.inf
 
         for x_sample, label in zip(X, labels):
             distances = np.apply_along_axis(
@@ -165,17 +155,17 @@ class SelfOrganizingMap:
                 arr=self._W
             )
 
-            label_d_map[label] = distances
-            min_d_idx = np.argmin(distances).item()
+            # for all output distances larger than the distances to this
+            # sample, set their label to this label and set their distances
+            # to their distances to this sample
+            # this way we get a "continuous" output in the nodes, where even
+            # if a node is not the minimum for a specific input, it is still
+            # marked if that input is the closest to it anyway.
+            indices = np.nonzero(distances < min_distances)
+            output[indices] = [label] * len(indices)
+            min_distances[indices] = distances[indices]
 
-            if min_d_idx in node_label_map:
-                print(f'Conflict in mapping, '
-                      f'node {min_d_idx}: {label} | '
-                      f'{node_label_map[min_d_idx]}')
-
-            node_label_map[min_d_idx] = label
-
-        return self._topo.map(node_label_map)
+        return self._topo.map(output)
 
 
 def decay_fn(d0: int, d: int, epoch: int) -> int:
@@ -197,8 +187,12 @@ if __name__ == '__main__':
         topology=LinearSOMTopology(nnodes=100,
                                    starting_neighbor_d=50,
                                    neighborhood_decay_fn=decay_fn))
-    som.train(animals_fts, n_epochs=25)
+    som.train(animals_fts, n_epochs=25, eta=0.25)
     results = som.map(animals_fts, labels)
 
-    print(results)
-    print(np.count_nonzero(results[results != '']), results.size)
+    animals = []
+    for label in results:
+        if label not in animals:
+            animals.append(label)
+
+    print(np.array(animals))
