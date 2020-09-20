@@ -1,6 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Callable, Iterable, Tuple
+from typing import Callable, Collection, Tuple, Union
 
 import numpy as np
 from numpy.random import default_rng
@@ -66,6 +66,11 @@ class SOMTopology(ABC):
         """
         pass
 
+    @abstractmethod
+    def get_coordinate_for_node(self, node_id: int) \
+            -> Tuple[Union[int, float], ...]:
+        pass
+
 
 class LinearSOMTopology(SOMTopology):
     def __init__(self, nnodes: int,
@@ -89,6 +94,10 @@ class LinearSOMTopology(SOMTopology):
 
     def map(self, label_per_node: np.ndarray) -> np.ndarray:
         return label_per_node
+
+    def get_coordinate_for_node(self, node_id: int) \
+            -> Tuple[Union[int, float], ...]:
+        return node_id,
 
 
 class CircularSOMTopology(LinearSOMTopology):
@@ -153,6 +162,13 @@ class GridSOMTopology(SOMTopology):
     def map(self, label_per_node: np.ndarray) -> np.ndarray:
         return label_per_node.reshape(self._grid.shape)
 
+    def get_coordinate_for_node(self, node_id: int) \
+            -> Tuple[Union[int, float], ...]:
+        row = node_id // self._grid.shape[0]
+        col = node_id % self._grid.shape[1]
+
+        return row, col
+
 
 class SelfOrganizingMap:
     def __init__(self, topology: SOMTopology):
@@ -204,7 +220,7 @@ class SelfOrganizingMap:
 
     def map_labels_to_output_space(self,
                                    X: np.ndarray,
-                                   labels: Iterable[str]) -> np.ndarray:
+                                   labels: Collection[str]) -> np.ndarray:
         """
         Maps a set of labeled inputs to the output space of this SOM.
         Returns a representation of the output space where the index of each
@@ -244,7 +260,7 @@ class SelfOrganizingMap:
 
         return self._topo.map(output)
 
-    def map(self, X: np.ndarray) -> np.ndarray:
+    def map(self, X: np.ndarray, coordinates: bool = False) -> np.ndarray:
         """
         Map a series of inputs to the output space. For each input, returns
         the index of the node closest to it.
@@ -267,4 +283,6 @@ class SelfOrganizingMap:
 
             output[i] = np.argmin(distances).item()
 
-        return output
+        return output if not coordinates \
+            else np.array([self._topo.get_coordinate_for_node(o)
+                           for o in output])
