@@ -286,3 +286,6 @@ class SelfOrganizingMap:
         return output if not coordinates \
             else np.array([self._topo.get_coordinate_for_node(o)
                            for o in output])
+
+    def get_weights(self) -> np.ndarray:
+        return self._W.copy()
