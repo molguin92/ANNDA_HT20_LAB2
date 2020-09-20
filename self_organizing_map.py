@@ -1,6 +1,6 @@
 import itertools
 from abc import ABC, abstractmethod
-from typing import Callable, Collection, Tuple, Union
+from typing import Callable, Tuple, Union
 
 import numpy as np
 from numpy.random import default_rng
@@ -194,7 +194,7 @@ class SelfOrganizingMap:
         self._W = rand_gen.uniform(low=0.0, high=1.0,
                                    size=(self._topo.node_count, X.shape[1]))
 
-        for epoch in range(n_epochs):
+        for epoch in range(1, n_epochs + 1):
             # shuffle in each epoch
             X = X.copy()
             rand_gen.shuffle(X)
@@ -220,7 +220,7 @@ class SelfOrganizingMap:
 
     def map_labels_to_output_space(self,
                                    X: np.ndarray,
-                                   labels: Collection[str]) -> np.ndarray:
+                                   labels: np.ndarray) -> np.ndarray:
         """
         Maps a set of labeled inputs to the output space of this SOM.
         Returns a representation of the output space where the index of each
@@ -236,8 +236,8 @@ class SelfOrganizingMap:
 
         assert X.shape[0] == len(labels)
 
-        output = np.empty(self._topo.node_count, dtype='U32')
-        output[:] = ''
+        output = np.empty(self._topo.node_count, dtype=labels.dtype)
+        output[:] = None
         min_distances = np.empty(self._topo.node_count)
         min_distances[:] = np.inf
 
