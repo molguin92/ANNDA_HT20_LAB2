@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod
 from typing import Callable, Iterable, Tuple
 
 import numpy as np
-import pandas as pd
 from numpy.random import default_rng
 
 rand_gen = default_rng()
@@ -269,31 +268,3 @@ class SelfOrganizingMap:
             output[i] = np.argmin(distances).item()
 
         return output
-
-
-def decay_fn(d0: int, d: int, epoch: int) -> int:
-    return d0 - int(2.5 * epoch)
-
-
-if __name__ == '__main__':
-    # load data
-    animals_fts = np.fromfile('data/animals.dat', sep=',')
-    animals_fts = animals_fts.reshape((32, 84))
-    labels = []
-    with open('data/animalnames.txt', 'r') as fp:
-        for line in fp.readlines():
-            labels.append(line.strip()[1:-1])
-            # [1: -1] is to remove extra quotation marks
-
-    som = SelfOrganizingMap(
-        topology=LinearSOMTopology(nnodes=100,
-                                   starting_neighbor_d=50,
-                                   neighborhood_decay_fn=decay_fn))
-    som.train(animals_fts, n_epochs=25, eta=0.25)
-    results = som.map(animals_fts)
-
-    animal_df = pd.DataFrame(data={'animal': labels, 'node': results}) \
-        .set_index('animal')
-    animal_df = animal_df.sort_values('node')
-
-    print(animal_df)
