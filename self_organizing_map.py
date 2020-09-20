@@ -14,6 +14,17 @@ class SOMTopology(ABC):
                  starting_neighbor_d: int = 5,
                  neighborhood_decay_fn: Callable[[int, int, int], int] =
                  lambda x: x - 1):
+        """
+        Self Organizing Map topology class.
+
+        :param nnodes: Number of nodes in the map.
+        :param starting_neighbor_d:  Starting neighborhood distance.
+        :param neighborhood_decay_fn: Decay function governing how the
+        neighborhood distance evolves over time. Should take as parameters
+        the starting neighborhood distance, the current neighborhood distance
+        and the current epoch.
+        """
+
         self._nnodes = nnodes
         self._d0 = starting_neighbor_d
         self._d = starting_neighbor_d
@@ -21,18 +32,39 @@ class SOMTopology(ABC):
 
     @abstractmethod
     def find_neighbors(self, node_idx: int) -> Tuple[int, ...]:
+        """
+        Finds the neighbors of the node with the given index.
+
+        :param node_idx: Index of the node.
+        :return: A tuple containing the neighbors of node node_idx.
+        """
         pass
 
     def shrink_neighborhood(self, epoch: int):
+        """
+        Shrinks the neighborhood using the stored neighborhood decay function.
+
+        :param epoch: Current training epoch.
+        """
         new_range = int(self._decay_fn(self._d0, self._d, epoch))
         self._d = max(new_range, 0)
 
     @property
     def node_count(self) -> int:
+        """
+        :return: Node count of this topology.
+        """
         return self._nnodes
 
     @abstractmethod
     def map(self, label_per_node: np.ndarray) -> np.ndarray:
+        """
+        Maps a set collection of labels to this topology.
+
+        :param label_per_node: A np.ndarray of length equal to the number of
+        nodes in this topology, containing a label for each node.
+        :return: Labels arranged in accordance to this internal topology.
+        """
         pass
 
 
@@ -89,6 +121,15 @@ class GridSOMTopology(SOMTopology):
                  starting_neighbor_d: int = 5,
                  neighborhood_decay_fn:
                  Callable[[int, int, int], int] = lambda x: x - 1):
+        """
+        Grid topology for Self Organizing Maps. The number of nodes of this 
+        topology corresponds to the number of columns times the number of rows.
+        
+        :param nrows: Number of rows in the grid.
+        :param ncols: Number of columns in the grid.
+        :param starting_neighbor_d: Starting neighborhood size.
+        :param neighborhood_decay_fn: Neighborhood decay function.
+        """
         super(GridSOMTopology, self).__init__(nrows * ncols,
                                               starting_neighbor_d,
                                               neighborhood_decay_fn)
@@ -115,14 +156,29 @@ class GridSOMTopology(SOMTopology):
 
 
 class SelfOrganizingMap:
-    def __init__(self, x_dims: int, topology: SOMTopology):
+    def __init__(self, topology: SOMTopology):
+        """
+        Implementation of a self organizing map.
+
+        :param topology: The topology of this map.
+        """
         super(SelfOrganizingMap, self).__init__()
-        self._dims = x_dims
         self._topo = topology
-        self._W = rand_gen.uniform(low=0.0, high=1.0,
-                                   size=(topology.node_count, x_dims))
+        self._W = np.empty(0)
 
     def train(self, X: np.ndarray, eta: float = 0.2, n_epochs: int = 20):
+        """
+        Train this map on the given input data.
+
+        :param X: Matrix of size MxN, where M is the number of samples and N
+        is the number of attributes.
+        :param eta: Learning factor.
+        :param n_epochs: Epochs to train for.
+        """
+
+        self._W = rand_gen.uniform(low=0.0, high=1.0,
+                                   size=(self._topo.node_count, X.shape[1]))
+
         for epoch in range(n_epochs):
             # shuffle in each epoch
             X = X.copy()
@@ -150,6 +206,21 @@ class SelfOrganizingMap:
     def map_labels_to_output_space(self,
                                    X: np.ndarray,
                                    labels: Iterable[str]) -> np.ndarray:
+        """
+        Maps a set of labeled inputs to the output space of this SOM.
+        Returns a representation of the output space where the index of each
+        element corresponds to a node, and the value of each element
+        corresponds to the label of the input for which said node reacted
+        strongest.
+
+        :param X: Matrix of size MxN, where M is the number of samples and N
+        is the number of attributes.
+        :param labels: Array of labels of length M
+        :return: A representation of the labeled output space.
+        """
+
+        assert X.shape[0] == len(labels)
+
         output = np.empty(self._topo.node_count, dtype='U32')
         output[:] = ''
         min_distances = np.empty(self._topo.node_count)
@@ -175,6 +246,16 @@ class SelfOrganizingMap:
         return self._topo.map(output)
 
     def map(self, X: np.ndarray) -> np.ndarray:
+        """
+        Map a series of inputs to the output space. For each input, returns
+        the index of the node closest to it.
+
+        :param X: Matrix of size MxN, where M is the number of samples and N
+        is the number of attributes.
+        :return: An array of length M, where each index corresponds to an
+        input, and each value to the node closest to that input.
+        """
+
         output = np.empty(X.shape[0], dtype=np.int)
         output[:] = np.nan
 
@@ -205,7 +286,6 @@ if __name__ == '__main__':
             # [1: -1] is to remove extra quotation marks
 
     som = SelfOrganizingMap(
-        x_dims=84,
         topology=LinearSOMTopology(nnodes=100,
                                    starting_neighbor_d=50,
                                    neighborhood_decay_fn=decay_fn))
